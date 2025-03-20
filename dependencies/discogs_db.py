@@ -94,3 +94,23 @@ class DiscogsDB:
             cursor.execute("SELECT last_run_start, last_run_end FROM last_update WHERE id = 1")
             result = cursor.fetchone()
             return result if result else (None, None)
+
+    def search_album_by_track(self, artist_name, track_name):
+        """Finds an album in the collection that contains the given track by the given artist."""
+        artist_name = artist_name.lower().replace("the ", "").strip()
+        track_name = track_name.lower().strip()
+
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT albums.title 
+                FROM albums
+                JOIN artists ON albums.artist_id = artists.id
+                JOIN tracks ON tracks.album_id = albums.id
+                WHERE LOWER(artists.name) LIKE '%' || ? || '%' 
+                AND LOWER(tracks.name) = ?
+                LIMIT 1
+            """, (artist_name, track_name))
+
+            result = cursor.fetchone()
+            return result if result else None  # Return album title if found, otherwise None

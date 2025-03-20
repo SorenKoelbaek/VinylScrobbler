@@ -4,26 +4,37 @@ from dependencies.dicsogs_collection import DiscogsCollection
 from services.audio_listener import AudioListener
 from services.shazam import ShazamRecognizer
 from dependencies.log_setup import get_logger
+from datetime import datetime, timedelta
 
 logger = get_logger(__name__)
 
+
 async def main(reinitialize=False):
     """Main entry point of the application."""
-    logger.debug("🚀 Starting application...")
+    logger.info("🚀 Starting application...")
 
-    # ✅ Step 1: Initialize Discogs collection (forced refresh if reinitialize=True)
+    # ✅ Step 1: Initialize Discogs collection
     discogs_collection = DiscogsCollection()
-    if reinitialize:
-        logger.debug("🔄 Reinitializing Discogs collection...")
+
+    # ✅ Step 2: Check last refresh timestamp
+    last_start, last_end = discogs_collection.db.get_last_update()
+
+    needs_refresh = (
+            reinitialize or
+            not last_end or  # If last_end is missing, assume we need a refresh
+            (datetime.now() - datetime.strptime(last_end, "%Y-%m-%d %H:%M:%S")) >= timedelta(days=1)  # Refresh if >24h
+    )
+
+    if needs_refresh:
+        logger.info("🔄 Updating Discogs collection...")
         discogs_collection._refresh_collection()
-        logger.debug("✅ Reinitialization complete. Exiting...")
-        return  # Exit after refreshing collection
+        if reinitialize:
+            logger.info("✅ Reinitialization complete. Exiting...")
+            return  # If manually reinitializing, exit after update
 
-    if discogs_collection.last_refresh is None:
-        logger.debug("🔄 Waiting for Discogs collection to populate before starting services...")
-        await asyncio.sleep(10)  # Give time for collection to populate
+    logger.info("✅ Discogs collection is up-to-date.")
 
-    # ✅ Step 2: Start audio processing services only after Discogs collection is ready
+    # ✅ Step 3: Start audio processing services only after Discogs collection is ready
     audio_listener = AudioListener()
     shazam_recognizer = ShazamRecognizer()
 
@@ -31,6 +42,7 @@ async def main(reinitialize=False):
         audio_listener.start(),
         shazam_recognizer.start()
     )
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="VinylScrobbler")
