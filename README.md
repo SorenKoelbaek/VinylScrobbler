@@ -1,2 +1,3 @@
 # VinylScrobbler
-A test of making an application that uses ShazamIO to automatically scrobble music played from analoge sources
+A LastFM scrobbler that searches within your discogs collection and uses ShazamIO to identify what music you are playing on analogue sources.
+the intent is to be able to quicly identify and add to lastfm what was played.

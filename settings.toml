@@ -1,0 +1,5 @@
+[default]
+collection_first=true
+listen_seconds=5
+wait_seconds=5
+input_device_name="MacBook Pro Microphone"
