@@ -7,6 +7,7 @@ from datetime import datetime
 from dependencies.log_setup import get_logger
 
 logger = get_logger(__name__)  # Use logging instead of print
+from config import settings
 
 class AudioListener:
     _instance = None
@@ -30,6 +31,7 @@ class AudioListener:
         """Records audio for a given duration and saves it as WAV."""
         try:
             logger.debug(f"Recording {duration}s of audio...")
+            sd.default.device = settings.input_device_name
             audio_data = sd.rec(
                 int(self.sample_rate * duration),
                 samplerate=self.sample_rate,
@@ -57,6 +59,6 @@ class AudioListener:
         """Continuously records audio at set intervals."""
         logger.debug("AudioListener started.")
         while True:
-            await self.record_audio()
+            await self.record_audio(settings.listen_seconds)
             await asyncio.sleep(interval)
 

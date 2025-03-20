@@ -35,9 +35,10 @@ class ShazamRecognizer:
 
             if result.get("track"):
                 track_info = result["track"]
+                album = track_info['sections'][0]['metadata'][0]['text']
                 song = track_info.get("title", "Unknown")
                 artist = track_info.get("subtitle", "Unknown Artist")
-                _is_new = self.song_state.update_song(song, artist)
+                _is_new = self.song_state.update_song(song, artist, album)
 
             else:
                 logger.debug("No match found")

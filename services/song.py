@@ -15,10 +15,10 @@ class SongState:
             cls._instance.discogs = DiscogsAPI()
         return cls._instance
 
-    def update_song(self, song, artist):
+    def update_song(self, song, artist, album):
         """Updates the song state only if the song has changed."""
         if (song, artist) != (self.last_song, self.last_artist):
-            found_artist, album, in_collection = self.discogs.search_album(artist, song)  # ✅ Get artist+album+collection
+            found_artist, album, in_collection = self.discogs.search_album(artist, song, album)  # ✅ Get artist+album+collection
 
             if album:
                 if in_collection:

@@ -7,7 +7,7 @@ from dependencies.log_setup import get_logger
 from datetime import datetime, timedelta
 
 logger = get_logger(__name__)
-
+from config import settings
 
 async def main(reinitialize=False):
     """Main entry point of the application."""
@@ -39,7 +39,7 @@ async def main(reinitialize=False):
     shazam_recognizer = ShazamRecognizer()
 
     await asyncio.gather(
-        audio_listener.start(),
+        audio_listener.start(settings.wait_seconds),
         shazam_recognizer.start()
     )
 
