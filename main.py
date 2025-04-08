@@ -22,9 +22,20 @@ from fastapi.responses import JSONResponse
 from dependencies.system_state import set_state, SystemStatus, state
 system_task: asyncio.Task | None = None
 from system import task_group  # Import the global TaskGroup
+from fastapi.middleware.cors import CORSMiddleware
+
 
 app = FastAPI()
 app.mount("/ui", StaticFiles(directory="static", html=True), name="static")
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # ⚠️ Dev only!
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/system/status", response_class=JSONResponse)
