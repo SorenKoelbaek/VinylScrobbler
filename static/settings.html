@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Device Settings</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<script type="module">
+  import { checkAuthAndShowNav } from "./js/common.js";
+  checkAuthAndShowNav();
+</script>
+  <main>
+    <h1>Settings</h1>
+    <form id="settings-form">
+      <label for="sound_device_name">Sound Device</label>
+      <select id="sound_device_name"></select>
+
+      <label for="device_name">Spotify Device Name</label>
+      <input type="text" id="device_name" />
+
+      <label for="listen_interval">Listen Interval (sec)</label>
+      <input type="number" id="listen_interval" />
+
+      <label for="listen_length">Listen Length (sec)</label>
+      <input type="number" id="listen_length" />
+
+      <label><input type="checkbox" id="collection_first" /> Use Collection First</label><br><br>
+
+      <button type="submit">Save</button>
+    </form>
+  </main>
+
+  <script>
+    async function loadDevices() {
+      const res = await fetch("/sound-devices");
+      const devices = await res.json();
+      const select = document.getElementById("sound_device_name");
+      devices.forEach(d => {
+        const opt = document.createElement("option");
+        opt.value = d.name;
+        opt.textContent = `${d.name} (in: ${d.max_input_channels}, out: ${d.max_output_channels})`;
+        select.appendChild(opt);
+      });
+    }
+
+    async function loadSettings() {
+      const res = await fetch("/settings");
+      if (!res.ok) return;
+      const s = await res.json();
+      document.getElementById("sound_device_name").value = s.sound_device_name;
+      document.getElementById("device_name").value = s.device_name;
+      document.getElementById("listen_interval").value = s.listen_interval;
+      document.getElementById("listen_length").value = s.listen_length;
+      document.getElementById("collection_first").checked = s.collection_first;
+    }
+
+    document.getElementById("settings-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await fetch("/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sound_device_name: document.getElementById("sound_device_name").value,
+          device_name: document.getElementById("device_name").value,
+          listen_interval: parseInt(document.getElementById("listen_interval").value),
+          listen_length: parseInt(document.getElementById("listen_length").value),
+          collection_first: document.getElementById("collection_first").checked
+        })
+      });
+      alert("Settings saved!");
+    });
+
+    loadDevices().then(loadSettings);
+  </script>
+</body>
+</html>

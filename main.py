@@ -1,52 +1,174 @@
+# main.py
+from datetime import timedelta, datetime
+from system import main
 import asyncio
-import argparse
-from dependencies.dicsogs_collection import DiscogsCollection
-from services.audio_listener import AudioListener
-from services.shazam import ShazamRecognizer
-from dependencies.log_setup import get_logger
-from datetime import datetime, timedelta
-
-logger = get_logger(__name__)
+from fastapi import FastAPI, HTTPException, Form
+import httpx
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from dependencies.database import (
+    init_db,
+    get_settings,
+    save_settings,
+    get_auth,
+    save_auth,
+    SettingsData,
+    AuthData,
+)
 from config import settings
+import uvicorn
+import sounddevice as sd
+from fastapi.responses import JSONResponse
+from dependencies.system_state import set_state, SystemStatus, state
+system_task: asyncio.Task | None = None
+from system import task_group  # Import the global TaskGroup
 
-async def main(reinitialize=False):
-    """Main entry point of the application."""
-    logger.info("🚀 Starting application...")
+app = FastAPI()
+app.mount("/ui", StaticFiles(directory="static", html=True), name="static")
 
-    # ✅ Step 1: Initialize Discogs collection
-    discogs_collection = DiscogsCollection()
 
-    # ✅ Step 2: Check last refresh timestamp
-    last_start, last_end = discogs_collection.db.get_last_update()
+@app.get("/system/status", response_class=JSONResponse)
+async def system_status():
+    return state
+@app.get("/ui")
+async def ui_redirect():
+    auth = await get_auth()
+    if auth:
+        return RedirectResponse(url="/ui/main.html")
+    return RedirectResponse(url="/ui/index.html")
 
-    needs_refresh = (
-            reinitialize or
-            not last_end or  # If last_end is missing, assume we need a refresh
-            (datetime.now() - datetime.strptime(last_end, "%Y-%m-%d %H:%M:%S")) >= timedelta(days=1)  # Refresh if >24h
-    )
+def list_audio_devices() -> list[dict]:
+    devices = sd.query_devices()
+    return [
+        {
+            "name": dev["name"],
+            "index": i,
+            "max_input_channels": dev["max_input_channels"],
+            "max_output_channels": dev["max_output_channels"]
+        }
+        for i, dev in enumerate(devices)
+    ]
 
-    if needs_refresh:
-        logger.info("🔄 Updating Discogs collection...")
-        discogs_collection._refresh_collection()
-        if reinitialize:
-            logger.info("✅ Reinitialization complete. Exiting...")
-            return  # If manually reinitializing, exit after update
 
-    logger.info("✅ Discogs collection is up-to-date.")
+# SETTINGS
+@app.get("/settings", response_model=SettingsData)
+async def api_get_settings():
+    settings = await get_settings()
+    if not settings:
+        raise HTTPException(status_code=404, detail="Settings not found")
+    return settings
 
-    # ✅ Step 3: Start audio processing services only after Discogs collection is ready
-    audio_listener = AudioListener()
-    shazam_recognizer = ShazamRecognizer()
 
-    await asyncio.gather(
-        audio_listener.start(settings.wait_seconds),
-        shazam_recognizer.start()
-    )
+@app.post("/settings")
+async def api_save_settings(settings: SettingsData):
+    await save_settings(settings)
+    return {"status": "ok"}
+
+
+# AUTH
+@app.get("/auth", response_model=AuthData)
+async def api_get_auth():
+    auth = await get_auth()
+    if not auth:
+        raise HTTPException(status_code=404, detail="Auth not found")
+    return auth
+
+
+@app.post("/auth/login")
+async def login_through_backend(
+    username: str = Form(...),
+    password: str = Form(...)
+):
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{settings.api_url}/token",  # <-- use your real URL
+                data={"username": username, "password": password},
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            response.raise_for_status()
+            data = response.json()
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Login failed")
+
+    token = data["access_token"]
+    refresh_token = data["refresh_token"]
+    expires_at = datetime.utcnow() + timedelta(minutes=60)
+
+    await save_auth(AuthData(
+        access_token=token,
+        refresh_token=refresh_token,
+        expires_at=expires_at
+    ))
+
+    return {"status": "ok"}
+
+@app.get("/sound-devices", response_class=JSONResponse)
+async def get_sound_devices():
+    devices = list_audio_devices()
+    return devices
+
+
+@app.post("/system/start")
+async def start_system_manually():
+    global system_task
+    if system_task and not system_task.done():
+        raise HTTPException(status_code=400, detail="System already running")
+
+    settings = await get_settings()
+    if not settings:
+        raise HTTPException(status_code=400, detail="Missing settings")
+
+    set_state(SystemStatus.RUNNING)
+    system_task = asyncio.create_task(main())
+    return {"status": "started"}
+
+@app.post("/system/stop")
+async def stop_system_manually():
+    global system_task, task_group
+    if not system_task:
+        raise HTTPException(status_code=400, detail="System not running")
+
+    if task_group:
+        task_group.abort()
+    system_task.cancel()
+
+    try:
+        await system_task
+    except asyncio.CancelledError:
+        pass
+
+    set_state(SystemStatus.IDLE)
+    return {"status": "stopped"}
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="VinylScrobbler")
-    parser.add_argument("--reinit", action="store_true", help="Force reinitialize Discogs collection and exit")
-    args = parser.parse_args()
+    uvicorn.run("main:app", host="0.0.0.0", port=6000, reload=True)
 
-    asyncio.run(main(reinitialize=args.reinit))
+
+@app.on_event("startup")
+async def start_system_on_boot():
+    await init_db()
+    global system_task
+    settings = await get_settings()
+    if settings:
+        set_state(SystemStatus.RUNNING)
+        system_task = asyncio.create_task(main())
+    else:
+        set_state(SystemStatus.IDLE)
+        print("⚠️ No settings found — system will not start.")
+
+@app.on_event("shutdown")
+async def stop_system():
+    global system_task
+    if system_task:
+        # TaskGroup abort should already have been called (e.g. from /system/stop)
+        system_task.cancel()
+        try:
+            await system_task
+        except asyncio.CancelledError:
+            print("System task cancelled during shutdown.")
+        finally:
+            set_state(SystemStatus.IDLE)
