@@ -6,7 +6,7 @@ authors = [
     {name = "dksokoiv",email = "soren.iversen@lego.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "dynaconf (>=3.2.10,<4.0.0)",
     "shazamio (>=0.8.0,<0.9.0)",
@@ -16,6 +16,11 @@ dependencies = [
     "discogs-client (>=2.3.0,<3.0.0)",
     "pylast (>=5.5.0,<6.0.0)",
     "fuzzywuzzy (>=0.18.0,<0.19.0)",
+    "websockets (>=15.0.1,<16.0.0)",
+    "fastapi (>=0.115.12,<0.116.0)",
+    "uvicorn (>=0.34.0,<0.35.0)",
+    "aiosqlite (>=0.21.0,<0.22.0)",
+    "python-multipart (>=0.0.20,<0.0.21)",
 ]
 
 

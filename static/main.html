@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Device Status</title>
+  <link rel="stylesheet" href="/ui/css/style.css" />
+</head>
+<body>
+  <script type="module">
+    import { checkAuthAndShowNav } from "./js/common.js";
+    checkAuthAndShowNav();
+  </script>
+
+  <main>
+    <section id="system-status">
+  <h2>System Status</h2>
+  <p id="status-text">Loading...</p>
+  <button id="start-btn">Start</button>
+  <button id="stop-btn">Stop</button>
+</section>
+
+<script>
+  async function updateStatus() {
+    const res = await fetch("/system/status");
+    if (res.ok) {
+      const s = await res.json();
+      document.getElementById("status-text").textContent =
+        `Status: ${s.status} (updated ${s.last_updated})`;
+
+      document.getElementById("start-btn").disabled = s.status === "running";
+      document.getElementById("stop-btn").disabled = s.status !== "running";
+    }
+  }
+
+  document.getElementById("start-btn").addEventListener("click", async () => {
+    await fetch("/system/start", { method: "POST" });
+    updateStatus();
+  });
+
+  document.getElementById("stop-btn").addEventListener("click", async () => {
+    await fetch("/system/stop", { method: "POST" });
+    updateStatus();
+  });
+
+  updateStatus();
+</script>
+
+  </main>
+</body>
+</html>

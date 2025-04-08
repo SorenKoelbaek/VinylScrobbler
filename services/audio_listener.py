@@ -1,13 +1,14 @@
 import os
 import wave
 import asyncio
-import numpy as np
 import sounddevice as sd
 from datetime import datetime
 from dependencies.log_setup import get_logger
-
-logger = get_logger(__name__)  # Use logging instead of print
 from config import settings
+from dependencies.database import get_settings
+logger = get_logger(__name__)
+
+
 
 class AudioListener:
     _instance = None
@@ -29,9 +30,10 @@ class AudioListener:
 
     async def record_audio(self, duration=4):
         """Records audio for a given duration and saves it as WAV."""
+        db_settings = await get_settings()
         try:
             logger.debug(f"Recording {duration}s of audio...")
-            sd.default.device = settings.input_device_name
+            sd.default.device = db_settings.sound_device_name
             audio_data = sd.rec(
                 int(self.sample_rate * duration),
                 samplerate=self.sample_rate,
@@ -57,8 +59,12 @@ class AudioListener:
 
     async def start(self, interval=10):
         """Continuously records audio at set intervals."""
+        db_settings = await get_settings()
         logger.debug("AudioListener started.")
         while True:
-            await self.record_audio(settings.listen_seconds)
-            await asyncio.sleep(interval)
+            await self.record_audio(db_settings.listen_length)
+            await asyncio.sleep(db_settings.listen_interval)
 
+    async def stop(self):
+        """Stop the audio listener."""
+        logger.debug("AudioListener stopped.")

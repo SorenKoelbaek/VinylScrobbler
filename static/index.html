@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Device Login</title>
+  <link rel="stylesheet" href="/ui/css/style.css" />
+</head>
+<body>
+  <script>
+    // If already authed, redirect away
+    fetch("/auth").then(res => {
+      if (res.ok) {
+        window.location.href = "/ui/main.html";
+      }
+    });
+  </script>
+
+  <main>
+    <h1>Login to Device</h1>
+    <form id="auth-form">
+      <label for="username">Username</label>
+      <input type="text" id="username" required />
+
+      <label for="password">Password</label>
+      <input type="password" id="password" required />
+
+      <button type="submit">Login</button>
+      <p id="error" style="color: red; display: none;"></p>
+    </form>
+  </main>
+
+  <script>
+    document.getElementById("auth-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const error = document.getElementById("error");
+      error.style.display = "none";
+
+      const formData = new URLSearchParams();
+      formData.append("username", document.getElementById("username").value);
+      formData.append("password", document.getElementById("password").value);
+
+      try {
+        const res = await fetch("/auth/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          body: formData
+        });
+
+        if (res.ok) {
+          window.location.href = "/ui/main.html";
+        } else {
+          const data = await res.json();
+          error.textContent = data.detail || "Login failed";
+          error.style.display = "block";
+        }
+      } catch (err) {
+        error.textContent = "Network error";
+        error.style.display = "block";
+      }
+    });
+  </script>
+</body>
+</html>

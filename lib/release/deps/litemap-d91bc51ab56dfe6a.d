@@ -1,0 +1,11 @@
+/Users/dksokoiv/fuckme/librespot/target/release/deps/liblitemap-d91bc51ab56dfe6a.rmeta: /Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/lib.rs /Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/map.rs /Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/store/mod.rs /Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/store/slice_impl.rs /Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/store/vec_impl.rs
+
+/Users/dksokoiv/fuckme/librespot/target/release/deps/liblitemap-d91bc51ab56dfe6a.rlib: /Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/lib.rs /Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/map.rs /Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/store/mod.rs /Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/store/slice_impl.rs /Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/store/vec_impl.rs
+
+/Users/dksokoiv/fuckme/librespot/target/release/deps/litemap-d91bc51ab56dfe6a.d: /Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/lib.rs /Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/map.rs /Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/store/mod.rs /Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/store/slice_impl.rs /Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/store/vec_impl.rs
+
+/Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/lib.rs:
+/Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/map.rs:
+/Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/store/mod.rs:
+/Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/store/slice_impl.rs:
+/Users/dksokoiv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.7.4/src/store/vec_impl.rs:
