@@ -37,6 +37,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/system/status", response_class=JSONResponse)
 async def system_status():
     return state
