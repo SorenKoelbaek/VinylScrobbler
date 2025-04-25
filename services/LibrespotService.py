@@ -56,16 +56,20 @@ class LibrespotService:
         env = os.environ.copy()
         env["RUST_LOG"] = "error"
         db_settings = await get_settings()
-        device_name = db_settings.sound_device_name
-        # Resolve to a proper backend/device string
-        device = await self.resolve_pulseaudio_device(device_name)
-        if device:
-            logger.info("Resolving environment to linux")
-            backend = "pulseaudio"
-        else:
-            backend = "rodio"
-            device = device_name
+        raw_name = db_settings.sound_device_name  # e.g. "MAYA44 USB+: Audio (hw:2,0)"
 
+        # Try to get a PulseAudio sink
+        pulse_sink = await self.resolve_pulseaudio_device(raw_name)
+        if pulse_sink:
+            backend = "pulseaudio"
+            device = pulse_sink
+            logger.info(f"Using PulseAudio backend on sink '{device}'")
+        else:
+            # Fallback to rodio: extract the hw:X,Y portion or use raw_name
+            match = re.search(r"\(hw:(\d+,\d+)\)", raw_name)
+            device = f"hw:{match.group(1)}" if match else raw_name
+            backend = "rodio"
+            logger.info(f"Using rodio backend on device '{device}'")
 
         self.process = await asyncio.create_subprocess_exec(
             str(self.binary_path),

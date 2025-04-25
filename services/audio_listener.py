@@ -32,8 +32,14 @@ class AudioListener:
         """Records audio for a given duration and saves it as WAV."""
         db_settings = await get_settings()
         try:
+
+            # resolve device index:
+            for i, dev in enumerate(sd.query_devices()):
+                if dev["name"] == db_settings.sound_device_name:
+                    sd.default.device = i
+                    break
+
             logger.debug(f"Recording {duration}s of audio...")
-            sd.default.device = db_settings.sound_device_name
             audio_data = sd.rec(
                 int(self.sample_rate * duration),
                 samplerate=self.sample_rate,
