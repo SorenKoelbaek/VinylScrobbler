@@ -96,6 +96,24 @@ class ShazamRecognizer:
         try:
             logger.debug(f"🎧 Processing: {file_path}")
 
+            import numpy as np
+            import soundfile as sf
+
+            audio_data, _ = sf.read(file_path)
+            volume = np.abs(audio_data).mean()
+            silence_threshold = 500  # you will tune this
+
+            logger.debug(f"Recorded file volume: {volume}")
+
+            if volume < silence_threshold:
+                logger.info(f"🔇 Detected silence for {file_path}, skipping Shazam call.")
+                if self.playback_state.current and self.playback_state.current.state != "paused":
+                    self.playback_state.current.state = "paused"
+                    await self.playback_state._trigger_hook()
+                    logger.debug("🔇 Local silence 3x → Paused playback")
+                await self.delete_file_safely(file_path)
+                return
+
             result = await self.shazam.recognize(file_path)
 
             logger.debug(f"result? {result}")
