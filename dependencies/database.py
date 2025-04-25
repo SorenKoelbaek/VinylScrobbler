@@ -17,7 +17,8 @@ class AuthData(BaseModel):
     expires_at: datetime
 
 class SettingsData(BaseModel):
-    sound_device_name: str
+    sound_input_device_name: str
+    sound_output_device_name: str
     device_name: str
     listen_interval: int
     listen_length: int
@@ -37,12 +38,13 @@ async def init_db():
         await db.execute("""
         CREATE TABLE IF NOT EXISTS settings (
             id INTEGER PRIMARY KEY,
-            sound_device_name TEXT NOT NULL,
-            device_name TEXT NOT NULL,
-            listen_interval INTEGER NOT NULL,
-            listen_length INTEGER NOT NULL,
-            collection_first BOOLEAN NOT NULL
-            );
+            sound_input_device_name   TEXT NOT NULL DEFAULT '',
+            sound_output_device_name  TEXT NOT NULL DEFAULT '',
+            device_name               TEXT NOT NULL,
+            listen_interval           INTEGER NOT NULL,
+            listen_length             INTEGER NOT NULL,
+            collection_first          BOOLEAN NOT NULL
+        );
         """)
         await db.commit()
 
@@ -63,23 +65,24 @@ async def save_auth(data: AuthData):
         )
         await db.commit()
 
-
 async def save_settings(data: SettingsData):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             """
             INSERT OR REPLACE INTO settings (
                 id,
-                sound_device_name,
+                sound_input_device_name,
+                sound_output_device_name,
                 device_name,
                 listen_interval,
                 listen_length,
                 collection_first
-            ) VALUES (?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 1,
-                data.sound_device_name,
+                data.sound_input_device_name,
+                data.sound_output_device_name,
                 data.device_name,
                 data.listen_interval,
                 data.listen_length,
@@ -106,15 +109,16 @@ async def get_settings() -> Optional[SettingsData]:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM settings WHERE id = 1") as cursor:
             row = await cursor.fetchone()
-            if row:
-                return SettingsData(
-                    sound_device_name=row["sound_device_name"],
-                    device_name=row["device_name"],
-                    listen_interval=row["listen_interval"],
-                    listen_length=row["listen_length"],
-                    collection_first=bool(row["collection_first"]),
-                )
-            return None
+            if not row:
+                return None
+            return SettingsData(
+                sound_input_device_name=row["sound_input_device_name"],
+                sound_output_device_name=row["sound_output_device_name"],
+                device_name=row["device_name"],
+                listen_interval=row["listen_interval"],
+                listen_length=row["listen_length"],
+                collection_first=bool(row["collection_first"]),
+            )
 
 
 BACKEND_BASE_URL = settings.api_url

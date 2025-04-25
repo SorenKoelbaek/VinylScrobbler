@@ -33,9 +33,9 @@ class AudioListener:
         db_settings = await get_settings()
         try:
 
-            # resolve device index:
+            input_name = db_settings.sound_input_device_name
             for i, dev in enumerate(sd.query_devices()):
-                if dev["name"] == db_settings.sound_device_name:
+                if dev["name"] == input_name:
                     sd.default.device = i
                     break
 

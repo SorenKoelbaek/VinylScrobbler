@@ -56,33 +56,29 @@ class LibrespotService:
         env = os.environ.copy()
         env["RUST_LOG"] = "error"
         db_settings = await get_settings()
-        raw_name = db_settings.sound_device_name  # e.g. "MAYA44 USB+: Audio (hw:2,0)"
+        raw_output = db_settings.sound_output_device_name
 
-        # Try to get a PulseAudio sink
-        pulse_sink = await self.resolve_pulseaudio_device(raw_name)
-        if pulse_sink:
-            backend = "pulseaudio"
-            device = pulse_sink
-            logger.info(f"Using PulseAudio backend on sink '{device}'")
-        else:
-            # Fallback to rodio: extract the hw:X,Y portion or use raw_name
-            match = re.search(r"\(hw:(\d+,\d+)\)", raw_name)
-            device = f"hw:{match.group(1)}" if match else raw_name
-            backend = "rodio"
-            logger.info(f"Using rodio backend on device '{device}'")
+        # try to resolve the user‐selected PulseAudio sink
+        try:
+            sink = await self.resolve_pulseaudio_device(raw_output)
+        except Exception:
+            sink = None
+        if not sink:
+            sink = subprocess.check_output(["pactl", "get-default-sink"], text=True).strip()
 
+        logger.info(f"Using PulseAudio sink '{sink}'")
         self.process = await asyncio.create_subprocess_exec(
             str(self.binary_path),
             "-n", self.name,
             "-k", self.key,
-            "--backend", backend,
-            "--device", device,
+            "--backend", "pulseaudio",
+            "--device", sink,
             "--bitrate", "320",
             "--disable-audio-cache",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             cwd=str(Path(__file__).resolve().parent.parent),
-            env=env
+            env=env,
         )
         await self._stream_output()
 

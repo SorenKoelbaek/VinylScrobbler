@@ -23,7 +23,7 @@ from dependencies.system_state import set_state, SystemStatus, state
 system_task: asyncio.Task | None = None
 from system import task_group  # Import the global TaskGroup
 from fastapi.middleware.cors import CORSMiddleware
-
+import subprocess
 
 app = FastAPI()
 app.mount("/ui", StaticFiles(directory="static", html=True), name="static")
@@ -60,6 +60,10 @@ def list_audio_devices() -> list[dict]:
         for i, dev in enumerate(devices)
     ]
 
+def list_playback_devices() -> list[str]:
+    raw = subprocess.check_output(["aplay", "-L"], text=True)
+    return [line.strip() for line in raw.splitlines() if line and not line.startswith(" ")]
+
 
 # SETTINGS
 @app.get("/settings", response_model=SettingsData)
@@ -74,8 +78,6 @@ async def api_get_settings():
 async def api_save_settings(settings: SettingsData):
     await save_settings(settings)
     return {"status": "ok"}
-
-
 # AUTH
 @app.get("/auth", response_model=AuthData)
 async def api_get_auth():
@@ -119,8 +121,12 @@ async def login_through_backend(
 @app.get("/sound-devices", response_class=JSONResponse)
 async def get_sound_devices():
     devices = list_audio_devices()
-    return devices
+    return JSONResponse(content=devices)
 
+@app.get("/playback-devices", response_class=JSONResponse)
+async def api_list_playback_devices():
+    devices = list_playback_devices()
+    return JSONResponse(content=devices)
 
 @app.post("/system/start")
 async def start_system_manually():

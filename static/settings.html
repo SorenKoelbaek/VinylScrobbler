@@ -6,15 +6,18 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-<script type="module">
-  import { checkAuthAndShowNav } from "./js/common.js";
-  checkAuthAndShowNav();
-</script>
+  <script type="module">
+    import { checkAuthAndShowNav } from "./js/common.js";
+    checkAuthAndShowNav();
+  </script>
   <main>
     <h1>Settings</h1>
     <form id="settings-form">
-      <label for="sound_device_name">Sound Device</label>
-      <select id="sound_device_name"></select>
+      <label for="sound_input_device_name">Mic Input Device</label>
+      <select id="sound_input_device_name"></select>
+
+      <label for="sound_output_device_name">Playback Output Device</label>
+      <select id="sound_output_device_name"></select>
 
       <label for="device_name">Spotify Device Name</label>
       <input type="text" id="device_name" />
@@ -25,17 +28,20 @@
       <label for="listen_length">Listen Length (sec)</label>
       <input type="number" id="listen_length" />
 
-      <label><input type="checkbox" id="collection_first" /> Use Collection First</label><br><br>
-
+      <label>
+        <input type="checkbox" id="collection_first" />
+        Use Collection First
+      </label>
+      <br><br>
       <button type="submit">Save</button>
     </form>
   </main>
 
   <script>
-    async function loadDevices() {
+    async function loadInputDevices() {
       const res = await fetch("/sound-devices");
       const devices = await res.json();
-      const select = document.getElementById("sound_device_name");
+      const select = document.getElementById("sound_input_device_name");
       devices.forEach(d => {
         const opt = document.createElement("option");
         opt.value = d.name;
@@ -44,34 +50,55 @@
       });
     }
 
+    async function loadPlaybackDevices() {
+      const res = await fetch("/playback-devices");
+      const devices = await res.json();
+      const select = document.getElementById("sound_output_device_name");
+      devices.forEach(name => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        select.appendChild(opt);
+      });
+    }
+
     async function loadSettings() {
       const res = await fetch("/settings");
       if (!res.ok) return;
       const s = await res.json();
-      document.getElementById("sound_device_name").value = s.sound_device_name;
-      document.getElementById("device_name").value = s.device_name;
-      document.getElementById("listen_interval").value = s.listen_interval;
-      document.getElementById("listen_length").value = s.listen_length;
-      document.getElementById("collection_first").checked = s.collection_first;
+      document.getElementById("sound_input_device_name").value  = s.sound_input_device_name;
+      document.getElementById("sound_output_device_name").value = s.sound_output_device_name;
+      document.getElementById("device_name").value             = s.device_name;
+      document.getElementById("listen_interval").value         = s.listen_interval;
+      document.getElementById("listen_length").value           = s.listen_length;
+      document.getElementById("collection_first").checked       = s.collection_first;
     }
 
     document.getElementById("settings-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      await fetch("/settings", {
+      const payload = {
+        sound_input_device_name:  document.getElementById("sound_input_device_name").value,
+        sound_output_device_name: document.getElementById("sound_output_device_name").value,
+        device_name:              document.getElementById("device_name").value,
+        listen_interval:          parseInt(document.getElementById("listen_interval").value, 10),
+        listen_length:            parseInt(document.getElementById("listen_length").value, 10),
+        collection_first:         document.getElementById("collection_first").checked
+      };
+      const resp = await fetch("/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sound_device_name: document.getElementById("sound_device_name").value,
-          device_name: document.getElementById("device_name").value,
-          listen_interval: parseInt(document.getElementById("listen_interval").value),
-          listen_length: parseInt(document.getElementById("listen_length").value),
-          collection_first: document.getElementById("collection_first").checked
-        })
+        body: JSON.stringify(payload)
       });
-      alert("Settings saved!");
+      if (resp.ok) {
+        alert("Settings saved!");
+      } else {
+        alert("Error saving settings");
+      }
     });
 
-    loadDevices().then(loadSettings);
+    // Load both device lists, then populate current settings
+    Promise.all([loadInputDevices(), loadPlaybackDevices()])
+      .then(loadSettings);
   </script>
 </body>
 </html>
