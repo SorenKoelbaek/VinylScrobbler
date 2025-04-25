@@ -1,5 +1,6 @@
 import asyncio
 from dataclasses import dataclass
+from database import get_settings
 from typing import Optional
 from dependencies.log_setup import get_logger
 from config import settings
@@ -120,12 +121,13 @@ class PlaybackState:
             device_name: Optional[str] = None,
             self_active: Optional[bool] = None,
     ):
+        db = await get_settings()
         if self.current is None:
             self.current = ConnectUpdate(
                 spotify_track=spotify_track,
                 state=state,
-                device_id=device_id or "this_device",
-                device_name=device_name or "MyPythonLibrespot",
+                device_id=device_id,
+                device_name=device_name or db.device_name,
                 self_active=self_active if self_active is not None else True,
                 song_name=song_name,
                 album_name=album_name,

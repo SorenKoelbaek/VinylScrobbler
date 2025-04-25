@@ -12,6 +12,7 @@ from typing import Optional
 import subprocess
 import platform
 from dependencies.database import get_settings
+import websockets
 
 system = platform.system()
 logger = get_logger(__name__)
@@ -123,8 +124,13 @@ class LibrespotService:
                         parsed["album_name"] = info["album"]["name"]
                         parsed["artist_name"] = info["artists"][0]["name"]
 
-                await self.state.update_track_metadata(**parsed)
-                await self._on_state_update(parsed["state"], parsed["source"], parsed["self_active"])
+                try:
+                    # this internally does await websocket.send(...)
+                    await self.state.update_track_metadata(**parsed)
+                    await self._on_state_update(parsed["state"], parsed["source"], parsed["self_active"])
+                except (websockets.ConnectionClosedError, websockets.ConnectionClosedOK) as e:
+                    logger.warning(f"WebSocket closed during librespot streaming: {e}")
+                    break  # stop reading lines and let your TaskGroup tear down
 
 
     async def _on_state_update(self, state: str, source: str, active: bool):
