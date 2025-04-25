@@ -1,6 +1,6 @@
 import asyncio
 from dataclasses import dataclass
-from database import get_settings
+from dependencies.database import import get_settings
 from typing import Optional
 from dependencies.log_setup import get_logger
 from config import settings
