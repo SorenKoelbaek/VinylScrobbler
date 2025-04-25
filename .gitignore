@@ -1,2 +1,7 @@
 /discogs_collection.db
 /secrets.toml
+/lib/librespot/target/
+/lib/librespot/target/**
+
+# Ignore any Cargo build dirs
+**/target/
