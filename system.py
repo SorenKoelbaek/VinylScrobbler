@@ -91,10 +91,28 @@ async def run_services(db_settings: SettingsData):
             playback_state=playback_state,
         )
 
+        async def librespot_wrapper():
+            try:
+                await librespot_service.start()
+            except Exception as e:
+                logger.error(f"🔥 LibrespotService.start failed: {e}")
+                # optionally capture stderr:
+                if librespot_service.process:
+                    out = await librespot_service.process.communicate()
+                    logger.error(f"Librespot stderr: {out[1] if len(out)>1 else out[0]}")
+                raise
+
+        async def shazam_wrapper():
+            try:
+                await shazam_recognizer.start()
+            except Exception as e:
+                logger.error(f"🔥 ShazamRecognizer.start failed: {e}")
+                raise
+
         async with TaskGroup() as tg:
             task_group = tg
-            tg.create_task(librespot_service.start())
-            tg.create_task(shazam_recognizer.start())
+            tg.create_task(librespot_wrapper())
+            tg.create_task(shazam_wrapper())
 
     except asyncio.CancelledError:
         logger.warning("🛑 TaskGroup received cancellation.")
