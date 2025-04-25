@@ -56,23 +56,25 @@ class LibrespotService:
         env = os.environ.copy()
         env["RUST_LOG"] = "error"
         db_settings = await get_settings()
-        raw_output = db_settings.sound_output_device_name
+        raw_out = db.sound_output_device_name  # e.g. "front:CARD=USB,DEV=0"
 
-        # try to resolve the user‐selected PulseAudio sink
-        try:
-            sink = await self.resolve_pulseaudio_device(raw_output)
-        except Exception:
-            sink = None
-        if not sink:
-            sink = subprocess.check_output(["pactl", "get-default-sink"], text=True).strip()
+        if "CARD=" in raw_out:
+            backend = "rodio"
+            device = raw_out
+        else:
+            backend = "pulseaudio"
+            try:
+                device = await self.resolve_pulseaudio_device(raw_out)
+            except:
+                device = subprocess.check_output(["pactl", "get-default-sink"], text=True).strip()
 
-        logger.info(f"Using PulseAudio sink '{sink}'")
+        logger.info(f"Using {backend} sink '{device}'")
         self.process = await asyncio.create_subprocess_exec(
             str(self.binary_path),
             "-n", self.name,
             "-k", self.key,
-            "--backend", "pulseaudio",
-            "--device", sink,
+            "--backend", backend,
+            "--device", device,
             "--bitrate", "320",
             "--disable-audio-cache",
             stdout=asyncio.subprocess.PIPE,
