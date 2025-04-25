@@ -56,7 +56,7 @@ class LibrespotService:
         env = os.environ.copy()
         env["RUST_LOG"] = "error"
         db_settings = await get_settings()
-        raw_out = db.sound_output_device_name  # e.g. "front:CARD=USB,DEV=0"
+        raw_out = db_settings.sound_output_device_name  # e.g. "front:CARD=USB,DEV=0"
 
         if "CARD=" in raw_out:
             backend = "rodio"
