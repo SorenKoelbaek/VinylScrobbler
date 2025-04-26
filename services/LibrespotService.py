@@ -108,7 +108,6 @@ class LibrespotService:
             elif line_str.startswith("PlayerEvent: Paused"):
                 parsed = self._parse_player_pause(line_str)
 
-            # Apply the parsed state
             if parsed:
                 # If metadata is missing (connect_update), try to enrich via API
                 if (
@@ -124,8 +123,12 @@ class LibrespotService:
                         parsed["album_name"] = info["album"]["name"]
                         parsed["artist_name"] = info["artists"][0]["name"]
 
+                # ❗ After enrichment, if still missing anything, SKIP the update
+                if not all(parsed.get(k) for k in ("song_name", "album_name", "artist_name", "spotify_track")):
+                    logger.warning(f"⚠️ Skipping update due to missing metadata: {parsed}")
+                    continue
+
                 try:
-                    # this internally does await websocket.send(...)
                     await self.state.update_track_metadata(**parsed)
                     await self._on_state_update(parsed["state"], parsed["source"], parsed["self_active"])
                 except (websockets.ConnectionClosedError, websockets.ConnectionClosedOK) as e:
