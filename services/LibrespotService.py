@@ -139,7 +139,7 @@ class LibrespotService:
                 logger.info("🎶 Spotify playback resumed")
                 await self.listener_state.set_active(False)
             else:
-                logger.info("🎶 Spotify playback resumed")
+                logger.info("🎶 Spotify playback paused")
                 await self.listener_state.set_active(True)
 
     def _parse_connect_update(self, line: str) -> Optional[dict]:
