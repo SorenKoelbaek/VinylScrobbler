@@ -110,13 +110,12 @@ class ShazamRecognizer:
                 if self.playback_state.current and self.playback_state.current.state != "paused":
                     self.playback_state.current.state = "paused"
                     await self.playback_state._trigger_hook()
-                    logger.debug("🔇 Local silence 3x → Paused playback")
                 await self.delete_file_safely(file_path)
                 return
 
             result = await self.shazam.recognize(file_path)
 
-            logger.debug(f"result? {result}")
+            logger.info(f"result? {result}")
             if result.get("track"):
                 self.silence_count = 0
                 track_info = result["track"]
