@@ -36,6 +36,8 @@ async def run_services(db_settings: SettingsData):
     """Main entry point of the application."""
     global task_group
     listener_state = ListenerState()  # Move to outer scope for shutdown access
+    librespot_service = None
+    shazam_recognizer = None
 
     try:
         websocket = WebSocketService()
@@ -124,5 +126,6 @@ async def run_services(db_settings: SettingsData):
     finally:
         logger.info("🔇 Deactivating listener...")
         await listener_state.set_active(False)
-        await librespot_service.stop()
+        if librespot_service:
+            await librespot_service.stop()
         set_state(SystemStatus.IDLE)
