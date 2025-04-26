@@ -115,7 +115,7 @@ class ShazamRecognizer:
 
             result = await self.shazam.recognize(file_path)
 
-            logger.info(f"result? {result}")
+            logger.debug(f"result? {result}")
             if result.get("track"):
                 self.silence_count = 0
                 track_info = result["track"]
