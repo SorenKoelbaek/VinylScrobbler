@@ -5,6 +5,7 @@ from typing import Optional
 from dependencies.auth import Auth
 from config import settings
 from urllib.parse import urlencode
+import contextlib
 
 class WebSocketService:
     _instance = None
@@ -25,8 +26,7 @@ class WebSocketService:
 
     async def connect(self):
         """Establish a websocket connection with current auth token."""
-        if self._websocket:
-            await self._close_websocket()
+        await self._close_websocket()
 
         token = await self._auth.get_token()
         query_params = {"token": token}
@@ -34,48 +34,40 @@ class WebSocketService:
 
         try:
             self._websocket = await websockets.connect(url_with_token)
+            print("[WebSocket] Connected")
         except Exception as e:
             print(f"[WebSocket] Failed to connect: {e}")
             raise
 
-        # If connection succeeds, launch monitor if not running
         if not self._monitor_task or self._monitor_task.done():
             self._monitor_task = asyncio.create_task(self._monitor_connection())
 
     async def _close_websocket(self):
         """Safely close the websocket connection."""
-        try:
-            if self._websocket:
+        if self._websocket:
+            with contextlib.suppress(Exception):
                 await self._websocket.close()
-        except Exception:
-            pass
-        finally:
             self._websocket = None
 
     async def _reconnect(self):
         """Reconnect logic."""
+        print("[WebSocket] Reconnecting...")
         await self._close_websocket()
         await self._auth.auth()  # Force re-auth
         await self.connect()
 
     async def send_message(self, message: str):
-        """Send a message with resilience."""
+        """Send a message, reconnect if sending fails."""
         try:
-            if not self._websocket or self._websocket.closed:
-                await self._reconnect()
-
             await self._websocket.send(message)
-            print(f"Message sent: {message}")
+            print(f"[WebSocket] Message sent: {message}")
         except Exception as e:
             print(f"[WebSocket] Send failed: {e}")
             await self._reconnect()
 
     async def receive_message(self):
-        """Receive a message with resilience."""
+        """Receive a message, reconnect if receiving fails."""
         try:
-            if not self._websocket or self._websocket.closed:
-                await self._reconnect()
-
             response = await self._websocket.recv()
             try:
                 message = json.loads(response)
@@ -87,14 +79,14 @@ class WebSocketService:
         except Exception as e:
             print(f"[WebSocket] Receive failed: {e}")
             await self._reconnect()
-            return None  # Returning None to avoid crash chains
+            return None
 
     async def _monitor_connection(self, interval=30):
         """Background monitor to check websocket health."""
         print("[WebSocket] Starting connection monitor...")
         while True:
             try:
-                if self._websocket and not self._websocket.closed:
+                if self._websocket:
                     pong = await self._websocket.ping()
                     await asyncio.wait_for(pong, timeout=10)
             except Exception as e:
@@ -112,4 +104,3 @@ class WebSocketService:
 
         await self._close_websocket()
         print("WebSocketService closed.")
-
