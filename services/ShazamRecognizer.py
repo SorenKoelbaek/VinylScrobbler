@@ -100,7 +100,7 @@ class ShazamRecognizer:
             import soundfile as sf
 
             audio_data, _ = sf.read(file_path)
-            volume = np.abs(audio_data).mean()
+            volume = np.sqrt(np.mean(np.square(audio_data)))
             silence_threshold = 500  # you will tune this
 
             logger.debug(f"Recorded file volume: {volume}")

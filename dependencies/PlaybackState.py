@@ -84,6 +84,15 @@ class PlaybackState:
             "device_name": self.current.device_name,
         }
         payload["source"] = self.current.source
+
+        if self.current.source == "Spotify":
+            changed = True
+        if self.websocket and changed:
+            await self.websocket.send_message(json.dumps({
+                "type": "playback_update",
+                "payload": payload
+            }))
+
         if self.websocket and changed:
             await self.websocket.send_message(json.dumps({
                 "type": "playback_update",
