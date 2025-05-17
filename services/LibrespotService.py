@@ -70,6 +70,7 @@ class LibrespotService:
                 device = subprocess.check_output(["pactl", "get-default-sink"], text=True).strip()
 
         logger.info(f"Using {backend} sink '{device}'")
+        logger.info(f"{self.binary_path} -n {self.name} -k {self.key} --backend {backend} --device {device} --bitrate 320 --disable-audio-cache")
         self.process = await asyncio.create_subprocess_exec(
             str(self.binary_path),
             "-n", self.name,
