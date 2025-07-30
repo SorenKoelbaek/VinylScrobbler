@@ -91,6 +91,7 @@ class LibrespotService:
         async for line in self.process.stdout:
             line_str = line.decode().strip()
             parsed = None
+            logger.warning(f"⚠️ Got an event from Librespot: {line_str}")
             # CONNECT_UPDATE DISPATCH
             if line_str.startswith("[connect_update] "):
                 if "state=playing" in line_str:
