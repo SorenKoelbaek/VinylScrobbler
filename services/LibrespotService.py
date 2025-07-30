@@ -149,7 +149,13 @@ class LibrespotService:
     def _parse_connect_update(self, line: str) -> Optional[dict]:
         try:
             data_str = line[len("[connect_update] "):]
-            parts = dict(part.split("=", 1) for part in data_str.split())
+            parts = {}
+            for part in data_str.split():
+                if "=" in part:
+                    k, v = part.split("=", 1)
+                    parts[k] = v
+                else:
+                    logger.error(f"⚠️ Skipping malformed connect_update part: '{part}'")
 
             return {
                 "spotify_track": parts["uri"],
