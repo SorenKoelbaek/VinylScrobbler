@@ -93,6 +93,7 @@ class LibrespotService:
             parsed = None
             logger.warning(f"⚠️ Got an event from Librespot: {line_str}")
             # CONNECT_UPDATE DISPATCH
+
             if line_str.startswith("[connect_update] "):
                 if "state=playing" in line_str:
                     parsed = self._parse_connect_resume(line_str)
@@ -107,6 +108,9 @@ class LibrespotService:
                 parsed = self._parse_player_resume(line_str)
 
             elif line_str.startswith("PlayerEvent: Paused"):
+                parsed = self._parse_player_pause(line_str)
+
+            elif line_str.startswith("PlayerEvent: Stopped"):
                 parsed = self._parse_player_pause(line_str)
 
             if parsed:
@@ -168,6 +172,12 @@ class LibrespotService:
         except Exception as e:
             logger.error(f"❌ Failed to parse connect_update line: {line}\n{e}")
             return None
+
+    def _parse_natural_stop(self, line: str) -> Optional[dict]:
+        parsed = self._parse_connect_update(line)
+        if parsed and parsed["state"] == "playing":
+            return parsed
+        return None
 
     def _parse_connect_resume(self, line: str) -> Optional[dict]:
         parsed = self._parse_connect_update(line)
