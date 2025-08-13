@@ -59,52 +59,68 @@ class LibrespotService:
 
         db_settings = await get_settings()
         raw_out = (
-                    db_settings.sound_output_device_name or "").strip()  # e.g. "front:CARD=USB,DEV=0" or "alsa:plughw:CARD=USB,DEV=0" or a Pulse sink
+                    db_settings.sound_output_device_name or "").strip()  # e.g. "front:CARD=USB,DEV=0" or "alsa:plughw:CARD=USB,DEV=0" or a Pulse sink name
 
         def looks_like_alsa(s: str) -> bool:
-            # Common ALSA PCM prefixes plus support for an explicit "alsa:<pcm>" prefix
             prefixes = ("hw:", "plughw:", "front:", "dmix:", "iec958:", "sysdefault:", "alsa:")
             return s.startswith(prefixes) or "CARD=" in s
 
-        # Decide backend + normalize device string
-        if looks_like_alsa(raw_out):
-            backend = "alsa"
-            # Allow "alsa:<pcm>" to be stored in DB for clarity; strip the prefix here
-            device = raw_out.split("alsa:", 1)[-1]
-            device = device.strip()
-            # If only "CARD=...,DEV=..." provided, wrap with plughw for format conversion
-            if "CARD=" in device and not any(
-                    device.startswith(p) for p in ("hw:", "plughw:", "front:", "dmix:", "iec958:", "sysdefault:")
-            ):
-                device = f"plughw:{device}"
-        else:
-            backend = "pulseaudio"
+        # Normalize ALSA device (strip optional "alsa:" prefix)
+        alsa_pcm = raw_out.split("alsa:", 1)[-1].strip() if looks_like_alsa(raw_out) else None
+        if alsa_pcm and "CARD=" in alsa_pcm and not any(
+                alsa_pcm.startswith(p) for p in ("hw:", "plughw:", "front:", "dmix:", "iec958:", "sysdefault:")):
+            # If only "CARD=...,DEV=..." was stored, make it format-friendly
+            alsa_pcm = f"plughw:{alsa_pcm}"
+
+        backend = "rodio"
+        device_arg = None
+        extra_args = []
+
+        if alsa_pcm:
+            # Prefer subprocess -> aplay pinned to the ALSA PCM.
+            # Librespot PCM defaults: we'll request 44.1kHz S16 stereo which aplay accepts as S16_LE.
+            # (You can change to 48000 if you prefer.)
+            backend = "subprocess"
+
+            # Ensure 'aplay' exists; if not, fall back to rodio with a warning.
             try:
-                device = None
-                if raw_out:
-                    # Try to resolve a human-readable sink name the user saved
-                    device = await self.resolve_pulseaudio_device(raw_out)
-                if not device:
-                    # Fallback to the current default sink
-                    device = subprocess.check_output(["pactl", "get-default-sink"], text=True).strip()
+                subprocess.check_call(["which", "aplay"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                aplay_cmd = f"aplay -q -f S16_LE -r 44100 -c 2 -D {alsa_pcm}"
+                device_arg = aplay_cmd
+                # Tell librespot what we're outputting so it matches what aplay expects:
+                extra_args += ["--format", "S16", "--sample-rate", "44100", "--channels", "2"]
             except Exception:
-                # Last-resort fallback: let Pulse choose
-                device = "auto"
+                logger.warning(
+                    "Could not find 'aplay' in PATH; falling back to 'rodio' backend which uses system default output."
+                )
+                backend = "rodio"
+                device_arg = None  # rodio will use the system default (PipeWire/Pulse)
 
-        logger.info(f"Using {backend} sink '{device}'")
-        logger.info(
-            f"{self.binary_path} -n {self.name} -k {self.key} "
-            f"--backend {backend} --device {device} --bitrate 320 --disable-audio-cache"
-        )
+        # Final log of what we'll do
+        if backend == "subprocess":
+            logger.info(f"Using subprocess->aplay sink (ALSA) '{device_arg}'")
+        else:
+            sink_desc = device_arg if device_arg else "(system default)"
+            logger.info(f"Using {backend} sink {sink_desc}")
 
-        self.process = await asyncio.create_subprocess_exec(
+        # Build command
+        cmd = [
             str(self.binary_path),
             "-n", self.name,
             "-k", self.key,
             "--backend", backend,
-            "--device", device,
             "--bitrate", "320",
             "--disable-audio-cache",
+        ]
+        if device_arg:
+            cmd += ["--device", device_arg]
+        if extra_args:
+            cmd += extra_args
+
+        logger.info(" ".join(cmd))
+
+        self.process = await asyncio.create_subprocess_exec(
+            *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             cwd=str(Path(__file__).resolve().parent.parent),
