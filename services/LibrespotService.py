@@ -60,21 +60,17 @@ class LibrespotService:
         db_settings = await get_settings()
         raw_out = (db_settings.sound_output_device_name or "").strip()
 
-        backend = "pulseaudio"
+        def is_alsa_pcm(s: str) -> bool:
+            return s.startswith(("hw:", "plughw:", "front:", "dmix:", "iec958:", "sysdefault:")) or "CARD=" in s
+
+        backend = "rodio"
         device = None
+        # Use system default for "default" or any ALSA PCM; otherwise pass the name.
+        if raw_out and raw_out.lower() != "default" and not is_alsa_pcm(raw_out):
+            device = raw_out
 
-        # Only try to resolve if it's NOT "default"
-        if raw_out and raw_out.lower() != "default":
-            try:
-                device = await self.resolve_pulseaudio_device(raw_out)
-                if not device:
-                    # Try pactl default sink; if that fails, we still omit --device
-                    device = subprocess.check_output(["pactl", "get-default-sink"], text=True).strip() or None
-            except Exception:
-                device = None
+        logger.info(f"Using {backend} sink '{device or 'system default'}'")
 
-        # Log what we’ll do
-        logger.info(f"Using {backend} sink '{device if device else 'PulseAudio default'}'")
         cmd = [
             str(self.binary_path),
             "-n", self.name,
@@ -83,7 +79,7 @@ class LibrespotService:
             "--bitrate", "320",
             "--disable-audio-cache",
         ]
-        if device:  # only pass --device if we actually resolved one
+        if device:
             cmd += ["--device", device]
 
         logger.info(" ".join(cmd))
