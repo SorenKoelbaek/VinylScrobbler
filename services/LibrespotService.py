@@ -56,21 +56,47 @@ class LibrespotService:
     async def start(self):
         env = os.environ.copy()
         env["RUST_LOG"] = "error"
-        db_settings = await get_settings()
-        raw_out = db_settings.sound_output_device_name  # e.g. "front:CARD=USB,DEV=0"
 
-        if "CARD=" in raw_out:
-            backend = "rodio"
-            device = raw_out
+        db_settings = await get_settings()
+        raw_out = (
+                    db_settings.sound_output_device_name or "").strip()  # e.g. "front:CARD=USB,DEV=0" or "alsa:plughw:CARD=USB,DEV=0" or a Pulse sink
+
+        def looks_like_alsa(s: str) -> bool:
+            # Common ALSA PCM prefixes plus support for an explicit "alsa:<pcm>" prefix
+            prefixes = ("hw:", "plughw:", "front:", "dmix:", "iec958:", "sysdefault:", "alsa:")
+            return s.startswith(prefixes) or "CARD=" in s
+
+        # Decide backend + normalize device string
+        if looks_like_alsa(raw_out):
+            backend = "alsa"
+            # Allow "alsa:<pcm>" to be stored in DB for clarity; strip the prefix here
+            device = raw_out.split("alsa:", 1)[-1]
+            device = device.strip()
+            # If only "CARD=...,DEV=..." provided, wrap with plughw for format conversion
+            if "CARD=" in device and not any(
+                    device.startswith(p) for p in ("hw:", "plughw:", "front:", "dmix:", "iec958:", "sysdefault:")
+            ):
+                device = f"plughw:{device}"
         else:
             backend = "pulseaudio"
             try:
-                device = await self.resolve_pulseaudio_device(raw_out)
-            except:
-                device = subprocess.check_output(["pactl", "get-default-sink"], text=True).strip()
+                device = None
+                if raw_out:
+                    # Try to resolve a human-readable sink name the user saved
+                    device = await self.resolve_pulseaudio_device(raw_out)
+                if not device:
+                    # Fallback to the current default sink
+                    device = subprocess.check_output(["pactl", "get-default-sink"], text=True).strip()
+            except Exception:
+                # Last-resort fallback: let Pulse choose
+                device = "auto"
 
         logger.info(f"Using {backend} sink '{device}'")
-        logger.info(f"{self.binary_path} -n {self.name} -k {self.key} --backend {backend} --device {device} --bitrate 320 --disable-audio-cache")
+        logger.info(
+            f"{self.binary_path} -n {self.name} -k {self.key} "
+            f"--backend {backend} --device {device} --bitrate 320 --disable-audio-cache"
+        )
+
         self.process = await asyncio.create_subprocess_exec(
             str(self.binary_path),
             "-n", self.name,
@@ -84,6 +110,7 @@ class LibrespotService:
             cwd=str(Path(__file__).resolve().parent.parent),
             env=env,
         )
+
         await self._stream_output()
 
     async def _stream_output(self):
