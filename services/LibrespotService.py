@@ -56,32 +56,40 @@ class LibrespotService:
     async def start(self):
         env = os.environ.copy()
         env["RUST_LOG"] = "error"
-        db_settings = await get_settings()
-        raw_out = db_settings.sound_output_device_name  # e.g. "front:CARD=USB,DEV=0"
 
-        if "CARD=" in raw_out:
-            backend = "rodio"
-            device = raw_out
-        else:
-            backend = "pulseaudio"
+        db_settings = await get_settings()
+        raw_out = (db_settings.sound_output_device_name or "").strip()
+
+        backend = "pulseaudio"
+        device = None
+
+        # Only try to resolve if it's NOT "default"
+        if raw_out and raw_out.lower() != "default":
             try:
                 device = await self.resolve_pulseaudio_device(raw_out)
+                if not device:
+                    # Try pactl default sink; if that fails, we still omit --device
+                    device = subprocess.check_output(["pactl", "get-default-sink"], text=True).strip() or None
             except Exception:
-                device = subprocess.check_output(["pactl", "get-default-sink"], text=True).strip()
+                device = None
 
-        logger.info(f"Using {backend} sink '{device}'")
-        logger.info(
-            f"{self.binary_path} -n {self.name} -k {self.key} "
-            f"--backend {backend} --device {device} --bitrate 320 --disable-audio-cache"
-        )
-        self.process = await asyncio.create_subprocess_exec(
+        # Log what we’ll do
+        logger.info(f"Using {backend} sink '{device if device else 'PulseAudio default'}'")
+        cmd = [
             str(self.binary_path),
             "-n", self.name,
             "-k", self.key,
             "--backend", backend,
-            "--device", device,
             "--bitrate", "320",
             "--disable-audio-cache",
+        ]
+        if device:  # only pass --device if we actually resolved one
+            cmd += ["--device", device]
+
+        logger.info(" ".join(cmd))
+
+        self.process = await asyncio.create_subprocess_exec(
+            *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             cwd=str(Path(__file__).resolve().parent.parent),
