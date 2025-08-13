@@ -56,61 +56,32 @@ class LibrespotService:
     async def start(self):
         env = os.environ.copy()
         env["RUST_LOG"] = "error"
-
         db_settings = await get_settings()
-        raw_out = (db_settings.sound_output_device_name or "").strip()  # e.g. "front:CARD=USB,DEV=0"
+        raw_out = db_settings.sound_output_device_name  # e.g. "front:CARD=USB,DEV=0"
 
-        def looks_like_alsa(s: str) -> bool:
-            return (
-                    s.startswith(("hw:", "plughw:", "front:", "dmix:", "iec958:", "sysdefault:"))
-                    or "CARD=" in s
-            )
-
-        # If device looks ALSA, normalize to a concrete PCM
-        alsa_pcm = raw_out if looks_like_alsa(raw_out) else None
-        if alsa_pcm and "CARD=" in alsa_pcm and not alsa_pcm.startswith(
-                ("hw:", "plughw:", "front:", "dmix:", "iec958:", "sysdefault:")
-        ):
-            alsa_pcm = f"plughw:{alsa_pcm}"  # format-friendly
-
-        # Decide backend
-        if alsa_pcm:
-            # Use subprocess backend and feed raw PCM to aplay pinned to the ALSA device.
-            # librespot defaults to S16, 44100 Hz, 2 ch — match that in aplay.
-            try:
-                subprocess.check_call(["which", "aplay"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            except Exception:
-                logger.warning("`aplay` not found in PATH; falling back to rodio (system default output).")
-                backend = "rodio"
-                device_arg = None
-            else:
-                backend = "subprocess"
-                device_arg = f"aplay -q -t raw -f S16_LE -r 44100 -c 2 -D {alsa_pcm}"
-                logger.info(f"Using subprocess->aplay sink: {device_arg}")
-        else:
-            # Non-ALSA string -> stick with rodio (your build supports it)
+        if "CARD=" in raw_out:
             backend = "rodio"
-            device_arg = None
-            logger.info("Using rodio sink (system default output).")
+            device = raw_out
+        else:
+            backend = "pulseaudio"
+            try:
+                device = await self.resolve_pulseaudio_device(raw_out)
+            except Exception:
+                device = subprocess.check_output(["pactl", "get-default-sink"], text=True).strip()
 
-        # Build command
-        cmd = [
+        logger.info(f"Using {backend} sink '{device}'")
+        logger.info(
+            f"{self.binary_path} -n {self.name} -k {self.key} "
+            f"--backend {backend} --device {device} --bitrate 320 --disable-audio-cache"
+        )
+        self.process = await asyncio.create_subprocess_exec(
             str(self.binary_path),
             "-n", self.name,
             "-k", self.key,
             "--backend", backend,
+            "--device", device,
             "--bitrate", "320",
             "--disable-audio-cache",
-            # Ensure S16 so it matches aplay’s -f S16_LE
-            "--format", "S16",
-        ]
-        if device_arg:
-            cmd += ["--device", device_arg]
-
-        logger.info(" ".join(cmd))
-
-        self.process = await asyncio.create_subprocess_exec(
-            *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             cwd=str(Path(__file__).resolve().parent.parent),
