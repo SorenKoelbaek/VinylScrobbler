@@ -58,50 +58,40 @@ class LibrespotService:
         env["RUST_LOG"] = "error"
 
         db_settings = await get_settings()
-        raw_out = (
-                    db_settings.sound_output_device_name or "").strip()  # e.g. "front:CARD=USB,DEV=0" or "alsa:plughw:CARD=USB,DEV=0" or a Pulse sink name
+        raw_out = (db_settings.sound_output_device_name or "").strip()  # e.g. "front:CARD=USB,DEV=0"
 
         def looks_like_alsa(s: str) -> bool:
-            prefixes = ("hw:", "plughw:", "front:", "dmix:", "iec958:", "sysdefault:", "alsa:")
-            return s.startswith(prefixes) or "CARD=" in s
+            return (
+                    s.startswith(("hw:", "plughw:", "front:", "dmix:", "iec958:", "sysdefault:"))
+                    or "CARD=" in s
+            )
 
-        # Normalize ALSA device (strip optional "alsa:" prefix)
-        alsa_pcm = raw_out.split("alsa:", 1)[-1].strip() if looks_like_alsa(raw_out) else None
-        if alsa_pcm and "CARD=" in alsa_pcm and not any(
-                alsa_pcm.startswith(p) for p in ("hw:", "plughw:", "front:", "dmix:", "iec958:", "sysdefault:")):
-            # If only "CARD=...,DEV=..." was stored, make it format-friendly
-            alsa_pcm = f"plughw:{alsa_pcm}"
+        # If device looks ALSA, normalize to a concrete PCM
+        alsa_pcm = raw_out if looks_like_alsa(raw_out) else None
+        if alsa_pcm and "CARD=" in alsa_pcm and not alsa_pcm.startswith(
+                ("hw:", "plughw:", "front:", "dmix:", "iec958:", "sysdefault:")
+        ):
+            alsa_pcm = f"plughw:{alsa_pcm}"  # format-friendly
 
-        backend = "rodio"
-        device_arg = None
-        extra_args = []
-
+        # Decide backend
         if alsa_pcm:
-            # Prefer subprocess -> aplay pinned to the ALSA PCM.
-            # Librespot PCM defaults: we'll request 44.1kHz S16 stereo which aplay accepts as S16_LE.
-            # (You can change to 48000 if you prefer.)
-            backend = "subprocess"
-
-            # Ensure 'aplay' exists; if not, fall back to rodio with a warning.
+            # Use subprocess backend and feed raw PCM to aplay pinned to the ALSA device.
+            # librespot defaults to S16, 44100 Hz, 2 ch — match that in aplay.
             try:
                 subprocess.check_call(["which", "aplay"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                aplay_cmd = f"aplay -q -f S16_LE -r 44100 -c 2 -D {alsa_pcm}"
-                device_arg = aplay_cmd
-                # Tell librespot what we're outputting so it matches what aplay expects:
-                extra_args += ["--format", "S16", "--sample-rate", "44100", "--channels", "2"]
             except Exception:
-                logger.warning(
-                    "Could not find 'aplay' in PATH; falling back to 'rodio' backend which uses system default output."
-                )
+                logger.warning("`aplay` not found in PATH; falling back to rodio (system default output).")
                 backend = "rodio"
-                device_arg = None  # rodio will use the system default (PipeWire/Pulse)
-
-        # Final log of what we'll do
-        if backend == "subprocess":
-            logger.info(f"Using subprocess->aplay sink (ALSA) '{device_arg}'")
+                device_arg = None
+            else:
+                backend = "subprocess"
+                device_arg = f"aplay -q -t raw -f S16_LE -r 44100 -c 2 -D {alsa_pcm}"
+                logger.info(f"Using subprocess->aplay sink: {device_arg}")
         else:
-            sink_desc = device_arg if device_arg else "(system default)"
-            logger.info(f"Using {backend} sink {sink_desc}")
+            # Non-ALSA string -> stick with rodio (your build supports it)
+            backend = "rodio"
+            device_arg = None
+            logger.info("Using rodio sink (system default output).")
 
         # Build command
         cmd = [
@@ -111,11 +101,11 @@ class LibrespotService:
             "--backend", backend,
             "--bitrate", "320",
             "--disable-audio-cache",
+            # Ensure S16 so it matches aplay’s -f S16_LE
+            "--format", "S16",
         ]
         if device_arg:
             cmd += ["--device", device_arg]
-        if extra_args:
-            cmd += extra_args
 
         logger.info(" ".join(cmd))
 
@@ -126,7 +116,6 @@ class LibrespotService:
             cwd=str(Path(__file__).resolve().parent.parent),
             env=env,
         )
-
         await self._stream_output()
 
     async def _stream_output(self):
