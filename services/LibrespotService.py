@@ -56,36 +56,32 @@ class LibrespotService:
     async def start(self):
         env = os.environ.copy()
         env["RUST_LOG"] = "error"
-
         db_settings = await get_settings()
-        raw_out = (db_settings.sound_output_device_name or "").strip()
+        raw_out = db_settings.sound_output_device_name  # e.g. "front:CARD=USB,DEV=0"
 
-        def is_alsa_pcm(s: str) -> bool:
-            return s.startswith(("hw:", "plughw:", "front:", "dmix:", "iec958:", "sysdefault:")) or "CARD=" in s
-
-        backend = "rodio"
-        device = None
-        # Use system default for "default" or any ALSA PCM; otherwise pass the name.
-        if raw_out and raw_out.lower() != "default" and not is_alsa_pcm(raw_out):
+        if "CARD=" in raw_out:
+            backend = "rodio"
             device = raw_out
+        else:
+            backend = "pulseaudio"
+            try:
+                device = await self.resolve_pulseaudio_device(raw_out)
+            except Exception:
+                device = subprocess.check_output(["pactl", "get-default-sink"], text=True).strip()
 
-        logger.info(f"Using {backend} sink '{device or 'system default'}'")
-
-        cmd = [
+        logger.info(f"Using {backend} sink '{device}'")
+        logger.info(
+            f"{self.binary_path} -n {self.name} -k {self.key} "
+            f"--backend {backend} --device {device} --bitrate 320 --disable-audio-cache"
+        )
+        self.process = await asyncio.create_subprocess_exec(
             str(self.binary_path),
             "-n", self.name,
             "-k", self.key,
             "--backend", backend,
+            "--device", device,
             "--bitrate", "320",
             "--disable-audio-cache",
-        ]
-        if device:
-            cmd += ["--device", device]
-
-        logger.info(" ".join(cmd))
-
-        self.process = await asyncio.create_subprocess_exec(
-            *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             cwd=str(Path(__file__).resolve().parent.parent),
